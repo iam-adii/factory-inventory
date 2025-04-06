@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Material Logs Constraint</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #2563eb;
+        }
+        h2 {
+            color: #4b5563;
+            margin-top: 30px;
+        }
+        pre {
+            background-color: #f1f5f9;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .steps {
+            margin-top: 30px;
+        }
+        .step {
+            margin-bottom: 20px;
+            padding-left: 20px;
+            border-left: 3px solid #2563eb;
+        }
+        .error {
+            background-color: #fee2e2;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fix Material Logs Constraint</h1>
+    
+    <div class="error">
+        <strong>Current Error:</strong> Failed to delete material. null value in column "material_id" of relation "material_logs" violates not-null constraint
+    </div>
+    
+    <p>
+        The issue is that the <code>material_logs</code> table has a NOT NULL constraint on the <code>material_id</code> column, 
+        but when you try to delete a material, the system needs to set this value to NULL to maintain the relationship.
+    </p>
+    
+    <div class="steps">
+        <h2>How to Fix</h2>
+        
+        <div class="step">
+            <h3>Step 1: Log in to Supabase</h3>
+            <p>Log in to your Supabase dashboard at <a href="https://app.supabase.io" target="_blank">https://app.supabase.io</a></p>
+        </div>
+        
+        <div class="step">
+            <h3>Step 2: Open SQL Editor</h3>
+            <p>Navigate to the SQL Editor in your Supabase dashboard</p>
+        </div>
+        
+        <div class="step">
+            <h3>Step 3: Run the following SQL</h3>
+            <p>Copy and paste the following SQL into the editor and run it:</p>
+            <pre>
+-- First, drop the existing foreign key constraint if it exists
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'material_logs_material_id_fkey'
+        AND table_name = 'material_logs'
+    ) THEN
+        ALTER TABLE public.material_logs DROP CONSTRAINT material_logs_material_id_fkey;
+    END IF;
+END $$;
+
+-- Drop the NOT NULL constraint on material_id column
+ALTER TABLE public.material_logs ALTER COLUMN material_id DROP NOT NULL;
+
+-- Re-add the foreign key constraint with ON DELETE SET NULL
+ALTER TABLE public.material_logs
+    ADD CONSTRAINT material_logs_material_id_fkey
+    FOREIGN KEY (material_id)
+    REFERENCES public.materials(id)
+    ON DELETE SET NULL;
+            </pre>
+        </div>
+        
+        <div class="step">
+            <h3>Step 4: Verify the change</h3>
+            <p>Run this SQL to verify that the change was successful:</p>
+            <pre>
+SELECT is_nullable 
+FROM information_schema.columns
+WHERE table_name = 'material_logs' AND column_name = 'material_id';
+            </pre>
+            <p>The result should show <code>YES</code> for the <code>is_nullable</code> column.</p>
+        </div>
+    </div>
+    
+    <h2>What This Fix Does</h2>
+    <p>
+        This SQL script makes the following changes to your database:
+    </p>
+    <ol>
+        <li>Drops the existing foreign key constraint on the <code>material_id</code> column</li>
+        <li>Removes the NOT NULL constraint from the <code>material_id</code> column</li>
+        <li>Re-adds the foreign key constraint with <code>ON DELETE SET NULL</code>, which automatically sets <code>material_id</code> to NULL when a material is deleted</li>
+    </ol>
+    
+    <p>
+        After applying this fix, you should be able to delete materials without any constraint errors.
+    </p>
+</body>
+</html>

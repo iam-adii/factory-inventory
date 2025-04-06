@@ -1,12 +1,14 @@
 
 import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Plus, ArrowUpDown, Edit, Trash2 } from "lucide-react";
+import { Search, Plus, ArrowUpDown, Edit, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { materialService } from "@/lib/services/materialService";
+import { useAuth } from "@/hooks/use-auth";
 import { toast } from "@/hooks/use-toast";
 
 interface Material {
@@ -26,10 +28,13 @@ interface MaterialListProps {
 }
 
 const MaterialList: React.FC<MaterialListProps> = ({ onAddNew, onEdit }) => {
+  const { isAuthenticated } = useAuth();
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortConfig, setSortConfig] = useState<{ key: keyof Material; direction: 'ascending' | 'descending' } | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const fetchMaterials = async () => {
     setLoading(true);
@@ -119,6 +124,19 @@ const MaterialList: React.FC<MaterialListProps> = ({ onAddNew, onEdit }) => {
     material.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const totalPages = Math.ceil(filteredMaterials.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedMaterials = filteredMaterials.slice(startIndex, startIndex + itemsPerPage);
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+  };
+
+  const handleItemsPerPageChange = (value: string) => {
+    setItemsPerPage(Number(value));
+    setCurrentPage(1); // Reset to first page when changing items per page
+  };
+
   const getStockStatus = (material: Material) => {
     if (material.current_stock <= material.threshold) {
       return "bg-red-100 text-red-800";
@@ -204,12 +222,12 @@ const MaterialList: React.FC<MaterialListProps> = ({ onAddNew, onEdit }) => {
                 </TableRow>
               ) : filteredMaterials.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
+                  <TableCell colSpan={7} className="h-24 text-center">
                     No materials found.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredMaterials.map((material) => (
+                paginatedMaterials.map((material) => (
                   <TableRow key={material.id}>
                     <TableCell className="font-medium">{material.name}</TableCell>
                     <TableCell>{material.category}</TableCell>
@@ -236,6 +254,49 @@ const MaterialList: React.FC<MaterialListProps> = ({ onAddNew, onEdit }) => {
           </Table>
         </div>
       </CardContent>
+      <CardFooter className="flex items-center justify-between space-x-2 py-4">
+        <div className="flex items-center space-x-2">
+          <p className="text-sm text-muted-foreground">
+            Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredMaterials.length)} of {filteredMaterials.length} entries
+          </p>
+          <Select
+            value={String(itemsPerPage)}
+            onValueChange={handleItemsPerPageChange}
+          >
+            <SelectTrigger className="h-8 w-[70px]">
+              <SelectValue placeholder={String(itemsPerPage)} />
+            </SelectTrigger>
+            <SelectContent side="top">
+              {[5, 10, 20, 50, 100].map((value) => (
+                <SelectItem key={value} value={String(value)}>
+                  {value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex items-center justify-center text-sm font-medium">
+            Page {currentPage} of {totalPages}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </CardFooter>
     </Card>
   );
 };

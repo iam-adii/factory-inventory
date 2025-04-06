@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,7 @@ import {
   Select, SelectContent, SelectItem, 
   SelectTrigger, SelectValue 
 } from "@/components/ui/select";
-import { Search, Plus, ArrowUpDown, Package2, Trash2, Edit, Eye } from "lucide-react";
+import { Search, Plus, ArrowUpDown, Package2, Trash2, Edit, Eye, ChevronLeft, ChevronRight, Calendar, Filter, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
@@ -33,6 +33,9 @@ import {
 import { materialService } from "@/lib/services/materialService";
 import { materialHistoryService, MaterialTransaction } from "@/lib/services/materialHistoryService";
 import { Database } from "@/types/supabase";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { format } from "date-fns";
 
 // Define the StockItem interface based on our UI needs
 interface StockItem {
@@ -70,6 +73,117 @@ const mockStockData = [
   { id: 7, name: "Sodium Chloride", category: "Salt", currentStock: 500, maxStock: 600, unit: "kg", lastUpdated: "2023-06-10" },
 ];
 
+// Stock Filter Component
+interface StockFilterProps {
+  filters: {
+    category: string;
+    stockStatus: string;
+    dateFrom: Date | null;
+    dateTo: Date | null;
+  };
+  categories: string[];
+  onFilterChange: (filters: any) => void;
+  onReset: () => void;
+}
+
+const StockFilter = ({ filters, categories, onFilterChange, onReset }: StockFilterProps) => {
+  return (
+    <div className="bg-card p-4 rounded-lg border shadow-sm mb-6">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-medium flex items-center gap-2">
+          <Filter className="h-4 w-4" />
+          Filter Stock Items
+        </h3>
+        <Button variant="ghost" size="sm" onClick={onReset} className="h-8">
+          <X className="h-4 w-4 mr-2" />
+          Reset
+        </Button>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Category</label>
+          <Select
+            value={filters.category}
+            onValueChange={(value) => onFilterChange({ category: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {categories.map((category) => (
+                <SelectItem key={category} value={category}>
+                  {category}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Stock Status</label>
+          <Select
+            value={filters.stockStatus}
+            onValueChange={(value) => onFilterChange({ stockStatus: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select stock status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Stock</SelectItem>
+              <SelectItem value="low">Low Stock (Below Threshold)</SelectItem>
+              <SelectItem value="critical">Critical Stock (Below 20%)</SelectItem>
+              <SelectItem value="normal">Normal Stock</SelectItem>
+              <SelectItem value="excess">Excess Stock (Above 90%)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Updated From</label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="w-full justify-start text-left font-normal">
+                <Calendar className="mr-2 h-4 w-4" />
+                {filters.dateFrom ? format(filters.dateFrom, "PPP") : "Select date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <CalendarComponent
+                mode="single"
+                selected={filters.dateFrom || undefined}
+                onSelect={(date) => onFilterChange({ dateFrom: date })}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+        
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Updated To</label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="w-full justify-start text-left font-normal">
+                <Calendar className="mr-2 h-4 w-4" />
+                {filters.dateTo ? format(filters.dateTo, "PPP") : "Select date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <CalendarComponent
+                mode="single"
+                selected={filters.dateTo || undefined}
+                onSelect={(date) => onFilterChange({ dateTo: date })}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Stock = () => {
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,9 +198,22 @@ const Stock = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
   const [stockToAdd, setStockToAdd] = useState<number>(0);
+  const [billNumber, setBillNumber] = useState<string>("");
   const [loaded, setLoaded] = useState(false);
   const [materialHistory, setMaterialHistory] = useState<MaterialTransaction[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [showFilters, setShowFilters] = useState(false);
+  const [categories, setCategories] = useState<string[]>([]);
+  
+  // Filter state
+  const [filters, setFilters] = useState({
+    category: "all",
+    stockStatus: "all",
+    dateFrom: null as Date | null,
+    dateTo: null as Date | null
+  });
   
   // Edit form state
   const [editForm, setEditForm] = useState<StockItem>({
@@ -113,6 +240,10 @@ const Stock = () => {
           // Map the Supabase data to our StockItem interface
           const stockItems = data.map(mapMaterialToStockItem);
           setStockItems(stockItems);
+          
+          // Extract unique categories for filter
+          const uniqueCategories = Array.from(new Set(stockItems.map(item => item.category)));
+          setCategories(uniqueCategories);
         }
       } catch (error) {
         console.error('Error fetching materials:', error);
@@ -163,14 +294,88 @@ const Stock = () => {
     return itemsToSort;
   };
 
-  const filteredStockItems = sortedStockItems().filter(item => 
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleFilterChange = (newFilters: any) => {
+    setFilters(prev => ({ ...prev, ...newFilters }));
+    setCurrentPage(1); // Reset to first page when filters change
+  };
+
+  const resetFilters = () => {
+    setFilters({
+      category: "all",
+      stockStatus: "all",
+      dateFrom: null,
+      dateTo: null
+    });
+    setCurrentPage(1);
+  };
+
+  const filteredStockItems = sortedStockItems().filter(item => {
+    // Text search filter
+    const matchesSearch = 
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.category.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    if (!matchesSearch) return false;
+    
+    // Category filter
+    if (filters.category !== "all" && item.category !== filters.category) {
+      return false;
+    }
+    
+    // Stock status filter
+    const percentage = Math.round((item.currentStock / item.maxStock) * 100);
+    if (filters.stockStatus !== "all") {
+      if (filters.stockStatus === "low" && item.currentStock > item.maxStock) {
+        return false;
+      }
+      if (filters.stockStatus === "critical" && percentage >= 20) {
+        return false;
+      }
+      if (filters.stockStatus === "normal" && (percentage < 20 || percentage > 90)) {
+        return false;
+      }
+      if (filters.stockStatus === "excess" && percentage <= 90) {
+        return false;
+      }
+    }
+    
+    // Date range filter
+    if (filters.dateFrom || filters.dateTo) {
+      const itemDate = new Date(item.lastUpdated);
+      
+      if (filters.dateFrom && itemDate < filters.dateFrom) {
+        return false;
+      }
+      
+      if (filters.dateTo) {
+        const endDate = new Date(filters.dateTo);
+        endDate.setHours(23, 59, 59, 999);
+        if (itemDate > endDate) {
+          return false;
+        }
+      }
+    }
+    
+    return true;
+  });
+
+  const totalPages = Math.ceil(filteredStockItems.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedStockItems = filteredStockItems.slice(startIndex, startIndex + itemsPerPage);
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+  };
+
+  const handleItemsPerPageChange = (value: string) => {
+    setItemsPerPage(Number(value));
+    setCurrentPage(1); // Reset to first page when changing items per page
+  };
 
   const handleAddStock = (item: StockItem) => {
     setSelectedItem(item);
     setStockToAdd(0);
+    setBillNumber("");
     setAddStockDialogOpen(true);
   };
 
@@ -251,7 +456,8 @@ const Stock = () => {
       // First record the direct stock addition transaction
       const { error: recordError } = await materialHistoryService.recordDirectStockAddition(
         selectedItem.id,
-        stockToAdd
+        stockToAdd,
+        billNumber
       );
       
       if (recordError) {
@@ -422,54 +628,79 @@ const Stock = () => {
           </div>
         </div>
 
-        {/* Visual Stock Indicators */}
-        <Card className="shadow-sm mb-6">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xl font-medium">
-              Stock Levels Overview
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {loading ? (
-                Array(6).fill(0).map((_, i) => (
-                  <div key={i} className="space-y-2">
-                    <div className="h-5 bg-muted rounded animate-pulse w-2/3"></div>
-                    <div className="h-4 bg-muted rounded animate-pulse w-1/3 mb-2"></div>
-                    <div className="h-2 bg-muted rounded animate-pulse"></div>
-                  </div>
-                ))
-              ) : (
-                filteredStockItems.map((item) => {
-                  const percentage = calculatePercentage(item.currentStock, item.maxStock);
-                  const progressColor = getProgressColor(percentage);
-                  
-                  return (
-                    <div key={item.id} className="space-y-2 animate-fade-in">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{item.name}</span>
-                        <span className="text-xs inline-flex items-center rounded-full px-2.5 py-0.5 font-medium bg-secondary">
-                          {item.category}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm text-muted-foreground">
-                        <span>{item.currentStock} / {item.maxStock} {item.unit}</span>
-                        <span>{percentage}%</span>
-                      </div>
-                      <Progress
-                        value={percentage}
-                        className={`h-2 transition-all duration-1000 ease-out ${progressColor}`}
-                      />
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Filter Toggle Button */}
+        <div className="mb-4">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2"
+          >
+            <Filter className="h-4 w-4" />
+            {showFilters ? "Hide Filters" : "Show Filters"}
+          </Button>
+        </div>
+
+        {/* Stock Filters */}
+        {showFilters && (
+          <StockFilter 
+            filters={filters} 
+            categories={categories}
+            onFilterChange={handleFilterChange} 
+            onReset={resetFilters} 
+          />
+        )}
 
         {/* Stock Table with Action Buttons */}
         <Card className="shadow-sm">
+          <CardFooter className="flex items-center justify-between space-x-2 py-4">
+            <div className="flex-1 text-sm text-muted-foreground">
+              {filteredStockItems.length} items total
+            </div>
+            <div className="flex items-center space-x-6 lg:space-x-8">
+              <div className="flex items-center space-x-2">
+                <p className="text-sm font-medium">Items per page</p>
+                <Select
+                  value={itemsPerPage.toString()}
+                  onValueChange={handleItemsPerPageChange}
+                >
+                  <SelectTrigger className="h-8 w-[70px]">
+                    <SelectValue placeholder={itemsPerPage.toString()} />
+                  </SelectTrigger>
+                  <SelectContent side="top">
+                    {[5, 10, 20, 30, 40, 50].map((pageSize) => (
+                      <SelectItem key={pageSize} value={pageSize.toString()}>
+                        {pageSize}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+                Page {currentPage} of {totalPages}
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  className="h-8 w-8 p-0"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  <span className="sr-only">Go to previous page</span>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-8 w-8 p-0"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  <span className="sr-only">Go to next page</span>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </CardFooter>
           <CardHeader className="pb-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <CardTitle className="text-xl font-medium">Stock Inventory</CardTitle>
@@ -537,7 +768,7 @@ const Stock = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredStockItems.map((item, index) => {
+                    paginatedStockItems.map((item, index) => {
                       const percentage = calculatePercentage(item.currentStock, item.maxStock);
                       const progressColor = getProgressColor(percentage);
                       
@@ -649,6 +880,19 @@ const Stock = () => {
                   max={selectedItem.maxStock - selectedItem.currentStock}
                   value={stockToAdd}
                   onChange={(e) => setStockToAdd(Number(e.target.value))}
+                  className="col-span-3"
+                />
+              </div>
+              
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="billNumber" className="text-right">
+                  Bill Number
+                </Label>
+                <Input
+                  id="billNumber"
+                  placeholder="Enter bill/invoice number"
+                  value={billNumber}
+                  onChange={(e) => setBillNumber(e.target.value)}
                   className="col-span-3"
                 />
               </div>
@@ -867,9 +1111,17 @@ const Stock = () => {
                   <SelectValue placeholder="Select unit" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="kg">Kg</SelectItem>
-                  <SelectItem value="L">L</SelectItem>
+                  <SelectItem value="KG">KG</SelectItem>
+                  <SelectItem value="Pcs">Pcs</SelectItem>
                   <SelectItem value="Mtr">Mtr</SelectItem>
+                  <SelectItem value="RFT">RFT</SelectItem>
+                  <SelectItem value="SQM">SQM</SelectItem>
+                  <SelectItem value="SQFT">SQFT</SelectItem>
+                  <SelectItem value="PKT">PKT</SelectItem>
+                  <SelectItem value="DRM">DRM</SelectItem>
+                  <SelectItem value="BOX">BOX</SelectItem>
+                  <SelectItem value="CASE">CASE</SelectItem>
+                  <SelectItem value="L">L</SelectItem>
                   <SelectItem value="cm">cm</SelectItem>
                   <SelectItem value="gm">gm</SelectItem>
                 </SelectContent>

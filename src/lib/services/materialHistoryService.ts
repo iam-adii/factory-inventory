@@ -15,13 +15,14 @@ export interface MaterialTransaction {
   stock: number; // Running balance after this transaction
   notes?: string; // Additional information
   formattedDate?: string; // Formatted date for display
+  bill_number?: string | null; // Bill or invoice number for purchases
 }
 
 export const materialHistoryService = {
   /**
    * Record a direct stock addition transaction
    */
-  async recordDirectStockAddition(materialId: number, quantity: number): Promise<{ error: any }> {
+  async recordDirectStockAddition(materialId: number, quantity: number, billNumber?: string): Promise<{ error: any }> {
     try {
       // We don't have a dedicated stock_additions table, so we'll use the usage_logs table with a negative quantity
       // to represent an addition (this is a workaround until a proper stock_additions table is created)
@@ -31,8 +32,9 @@ export const materialHistoryService = {
           material_id: materialId,
           quantity: -quantity, // Negative quantity represents an addition
           date: new Date().toISOString(),
-          username: 'Direct Addition',
-          notes: 'Direct stock addition',
+          username: 'System', // Using generic system identifier instead of user-specific one
+          notes: billNumber ? `Direct stock addition (Bill #${billNumber})` : 'Direct stock addition',
+          bill_number: billNumber || null,
           created_at: new Date().toISOString()
         });
       
@@ -61,6 +63,7 @@ export const materialHistoryService = {
           username,
           batch_id,
           notes,
+          bill_number,
           batches(batch_number)
         `)
         .eq('material_id', materialId)
@@ -98,17 +101,18 @@ export const materialHistoryService = {
         const batchNumber = batchInfo && batchInfo[0]?.batch_number;
         
         // Check if this is a direct addition (negative quantity) or consumption
-        const isDirect = log.quantity < 0 && log.username === 'Direct Addition';
+        const isDirect = log.quantity < 0 && log.username === 'System';
         
         return {
           id: `${isDirect ? 'addition' : 'consumption'}-${log.id}`,
           date: log.date,
           category: isDirect ? 'Purchase' : 'Consumption',
-          reference: isDirect ? 'Direct Addition' : (batchNumber ? `B-${batchNumber}` : '-'),
+          reference: isDirect ? (log.bill_number ? `Bill #${log.bill_number}` : 'Direct Addition') : (batchNumber ? `B-${batchNumber}` : '-'),
           inflow: isDirect ? Math.abs(log.quantity) : null,
           outflow: isDirect ? null : log.quantity,
           stock: 0, // Will calculate later
-          notes: log.notes || undefined
+          notes: log.notes || undefined,
+          bill_number: log.bill_number || null
         };
       }) || [];
 

@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import StockLevels from "@/components/Dashboard/StockLevels";
-import UsageChart from "@/components/Dashboard/UsageChart";
+import TopMaterialsChart from "@/components/Dashboard/TopMaterialsChart";
 import LowStockAlerts from "@/components/Dashboard/LowStockAlerts";
 import QuickActions from "@/components/Dashboard/QuickActions";
 import { Database, BarChart3, AlertCircle, Zap } from "lucide-react";
@@ -58,7 +58,7 @@ const Index = () => {
             </div>
             <div className="md:col-span-8">
               <div className="p-1 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 dark:from-blue-500/10 dark:to-cyan-500/5 h-full">
-                <UsageChart />
+                <TopMaterialsChart />
               </div>
             </div>
           </div>

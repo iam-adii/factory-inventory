@@ -39,7 +39,6 @@ interface UsageLogTableProps {
     category: string;
     dateFrom: Date | null;
     dateTo: Date | null;
-    user: string;
   };
   onFilterChange: (filters: any) => void;
 }
@@ -53,10 +52,12 @@ const transformUsageLogs = (logs: any[]) => {
     quantity: log.quantity,
     unit: log.materials?.unit || '',
     date: new Date(log.date),
-    user: log.username, // Using username field from database
     batch: log.batches?.batch_number || 'N/A',
     notes: log.notes || '',
-    material_id: log.material_id
+    material_id: log.material_id,
+    bill_number: log.bill_number || '',
+    // Determine if this is a stock addition entry (positive quantity)
+    isStockAddition: log.quantity > 0
   }));
 };
 
@@ -78,7 +79,7 @@ export const UsageLogTable = ({ filters, onFilterChange }: UsageLogTableProps) =
         // First, fetch all materials to get the material_id from name
         let materialId: number | undefined;
         
-        if (filters.material) {
+        if (filters.material && filters.material !== 'all') {
           const { data: materialsData } = await materialService.getAll();
           if (materialsData) {
             const material = materialsData.find(m => m.name === filters.material);
@@ -89,9 +90,7 @@ export const UsageLogTable = ({ filters, onFilterChange }: UsageLogTableProps) =
           }
         }
         
-        if (filters.user) {
-          filterParams.username = filters.user; // Fixed: changed from user to username
-        }
+        // User filtering removed as per requirement
         
         if (filters.dateFrom) {
           filterParams.dateFrom = filters.dateFrom.toISOString();
@@ -117,7 +116,7 @@ export const UsageLogTable = ({ filters, onFilterChange }: UsageLogTableProps) =
         let transformedLogs = transformUsageLogs(data);
         
         // Apply client-side filtering for category since it's not directly supported in the API
-        if (filters.category) {
+        if (filters.category && filters.category !== 'all') {
           transformedLogs = transformedLogs.filter(log => log.category === filters.category);
         }
         
@@ -128,7 +127,7 @@ export const UsageLogTable = ({ filters, onFilterChange }: UsageLogTableProps) =
             log.material.toLowerCase().includes(search) ||
             log.category.toLowerCase().includes(search) ||
             log.batch.toLowerCase().includes(search) ||
-            log.user.toLowerCase().includes(search) ||
+            (log.bill_number && log.bill_number.toLowerCase().includes(search)) ||
             (log.notes && log.notes.toLowerCase().includes(search))
           );
         }
@@ -311,18 +310,19 @@ export const UsageLogTable = ({ filters, onFilterChange }: UsageLogTableProps) =
               </TableHead>
               <TableHead 
                 className="cursor-pointer"
-                onClick={() => handleSort("user")}
+                onClick={() => handleSort("bill_number")}
               >
                 <div className="flex items-center">
-                  User {getSortIcon("user")}
+                  Bill Number {getSortIcon("bill_number")}
                 </div>
               </TableHead>
+              {/* User column removed */}
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
+                <TableCell colSpan={7} className="h-24 text-center">
                   <div className="flex justify-center items-center h-full">
                     <div className="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
                   </div>
@@ -330,7 +330,7 @@ export const UsageLogTable = ({ filters, onFilterChange }: UsageLogTableProps) =
               </TableRow>
             ) : logs.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
+                <TableCell colSpan={7} className="h-24 text-center">
                   No usage logs found.
                 </TableCell>
               </TableRow>
@@ -342,7 +342,16 @@ export const UsageLogTable = ({ filters, onFilterChange }: UsageLogTableProps) =
                   </TableCell>
                   <TableCell>{log.material}</TableCell>
                   <TableCell>
-                    <Badge variant={log.category === "Chemicals" ? "destructive" : "secondary"} className="bg-opacity-60">
+                    <Badge 
+                      variant={
+                        log.category === "Chemicals" || log.category === "Chemical" ? "destructive" : 
+                        ["GI Coil", "PPGL coil"].includes(log.category) ? "outline" :
+                        ["Screw", "Board"].includes(log.category) ? "default" :
+                        ["Puf Panel", "Insulation"].includes(log.category) ? "secondary" :
+                        log.category === "Adhesives" ? "warning" : "secondary"
+                      } 
+                      className="bg-opacity-60"
+                    >
                       {log.category}
                     </Badge>
                   </TableCell>
@@ -350,7 +359,16 @@ export const UsageLogTable = ({ filters, onFilterChange }: UsageLogTableProps) =
                     {log.quantity} {log.unit}
                   </TableCell>
                   <TableCell>{log.batch}</TableCell>
-                  <TableCell>{log.user}</TableCell>
+                  <TableCell>
+                    {log.bill_number ? (
+                      <span className={`${log.isStockAddition ? "font-medium text-green-600 dark:text-green-400" : ""}`}>
+                        {log.bill_number}
+                      </span>
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
+                  {/* User cell removed */}
                 </TableRow>
               ))
             )}

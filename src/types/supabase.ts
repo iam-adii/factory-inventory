@@ -44,6 +44,35 @@ export interface Database {
           created_at?: string
         }
       }
+      material_logs: {
+        Row: {
+          id: number
+          material_id: number
+          action_type: string
+          username: string
+          timestamp: string
+          details: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          material_id: number
+          action_type: string
+          username: string
+          timestamp?: string
+          details?: Json | null
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          material_id?: number
+          action_type?: string
+          username?: string
+          timestamp?: string
+          details?: Json | null
+          created_at?: string
+        }
+      }
       batches: {
         Row: {
           id: number

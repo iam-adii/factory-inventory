@@ -9,8 +9,7 @@ const UsageLog = () => {
     material: "",
     category: "",
     dateFrom: null,
-    dateTo: null,
-    user: ""
+    dateTo: null
   });
 
   useEffect(() => {

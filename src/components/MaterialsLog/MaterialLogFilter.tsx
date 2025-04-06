@@ -1,8 +1,7 @@
-
 import { useState, useEffect } from "react";
 import { Calendar, X } from "lucide-react";
 import { materialService } from "@/lib/services/materialService";
-import { usageLogService } from "@/lib/services/usageLogService";
+import { materialLogService } from "@/lib/services/materialLogService";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,19 +10,20 @@ import { Button } from "@/components/ui/button";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 
-interface UsageLogFilterProps {
+interface MaterialLogFilterProps {
   filters: {
     material: string;
-    category: string;
+    action_type: string;
     dateFrom: Date | null;
     dateTo: Date | null;
+    user: string;
   };
   onFilterChange: (filters: any) => void;
 }
 
-const UsageLogFilter = ({ filters, onFilterChange }: UsageLogFilterProps) => {
+const MaterialLogFilter = ({ filters, onFilterChange }: MaterialLogFilterProps) => {
   const [materials, setMaterials] = useState<{id: number, name: string}[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
+  const [users, setUsers] = useState<{id: number, name: string}[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Fetch materials and users from Supabase
@@ -42,13 +42,21 @@ const UsageLogFilter = ({ filters, onFilterChange }: UsageLogFilterProps) => {
             name: material.name
           }));
           setMaterials(transformedMaterials);
-
-          // Extract unique categories
-          const uniqueCategories = Array.from(new Set(materialsData.map(m => m.category)));
-          setCategories(uniqueCategories);
         }
 
-        // No need to fetch users anymore as user column is removed
+        // Get unique users from material logs
+        const { data: logsData, error: logsError } = await materialLogService.getAll();
+        if (logsError) throw logsError;
+
+        if (logsData) {
+          // Extract unique usernames and create user objects
+          const uniqueUsernames = Array.from(new Set(logsData.map(log => log.username)));
+          const userObjects = uniqueUsernames.map((username, index) => ({
+            id: index + 1,
+            name: username
+          }));
+          setUsers(userObjects);
+        }
       } catch (error) {
         console.error('Error fetching filter data:', error);
         toast({
@@ -68,23 +76,24 @@ const UsageLogFilter = ({ filters, onFilterChange }: UsageLogFilterProps) => {
   const handleReset = () => {
     onFilterChange({
       material: "all",
-      category: "all",
+      action_type: "all",
       dateFrom: null,
-      dateTo: null
+      dateTo: null,
+      user: "all"
     });
   };
 
   return (
     <div className="bg-card p-4 rounded-lg border shadow-sm">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-medium">Filter Usage Logs</h3>
+        <h3 className="text-lg font-medium">Filter Material Logs</h3>
         <Button variant="ghost" size="sm" onClick={handleReset} className="h-8">
           <X className="h-4 w-4 mr-2" />
           Reset
         </Button>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <div className="space-y-2">
           <label className="text-sm font-medium">Material</label>
           <Select
@@ -106,26 +115,42 @@ const UsageLogFilter = ({ filters, onFilterChange }: UsageLogFilterProps) => {
         </div>
         
         <div className="space-y-2">
-          <label className="text-sm font-medium">Category</label>
+          <label className="text-sm font-medium">Action Type</label>
           <Select
-            value={filters.category}
-            onValueChange={(value) => onFilterChange({ category: value })}
+            value={filters.action_type}
+            onValueChange={(value) => onFilterChange({ action_type: value })}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select category" />
+              <SelectValue placeholder="Select action type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {categories.map((category) => (
-                <SelectItem key={category} value={category}>
-                  {category}
+              <SelectItem value="all">All Actions</SelectItem>
+              <SelectItem value="create">Create</SelectItem>
+              <SelectItem value="update">Update</SelectItem>
+              <SelectItem value="delete">Delete</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="space-y-2">
+          <label className="text-sm font-medium">User</label>
+          <Select
+            value={filters.user}
+            onValueChange={(value) => onFilterChange({ user: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select user" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Users</SelectItem>
+              {users.map((user) => (
+                <SelectItem key={user.id} value={user.name}>
+                  {user.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        
-        {/* User filter removed */}
         
         <div className="space-y-2">
           <label className="text-sm font-medium">Date From</label>
@@ -171,4 +196,4 @@ const UsageLogFilter = ({ filters, onFilterChange }: UsageLogFilterProps) => {
   );
 };
 
-export default UsageLogFilter;
+export default MaterialLogFilter;

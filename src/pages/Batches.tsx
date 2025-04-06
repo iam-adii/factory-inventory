@@ -262,7 +262,7 @@ const Batches = () => {
             material_id: material.id,
             quantity: material.quantity || 0,
             date: new Date().toISOString(),
-            username: 'system', // Changed from 'user' to 'username' to match SQL schema
+            username: 'System', // Using generic system identifier instead of user-specific one
             batch_id: newBatchData.id,
             notes: `Added to batch ${newBatchData.batch_number} for product ${newBatchData.product}`
           });

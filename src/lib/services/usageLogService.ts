@@ -12,7 +12,7 @@ export const usageLogService = {
   async getAll(): Promise<{ data: UsageLog[] | null; error: any }> {
     const { data, error } = await supabase
       .from('usage_logs')
-      .select('*, materials(name, category, unit), batches(batch_number)')
+      .select('*, materials(name, category, unit), batches(batch_number), bill_number')
       .order('date', { ascending: false });
     
     return { data, error };
@@ -24,7 +24,7 @@ export const usageLogService = {
   async getById(id: number): Promise<{ data: UsageLog | null; error: any }> {
     const { data, error } = await supabase
       .from('usage_logs')
-      .select('*, materials(name, category, unit), batches(batch_number)')
+      .select('*, materials(name, category, unit), batches(batch_number), bill_number')
       .eq('id', id)
       .single();
     
@@ -87,7 +87,7 @@ export const usageLogService = {
   }): Promise<{ data: UsageLog[] | null; error: any }> {
     let query = supabase
       .from('usage_logs')
-      .select('*, materials(name, category, unit), batches(batch_number)');
+      .select('*, materials(name, category, unit), batches(batch_number), bill_number');
     
     if (filters.material_id) {
       query = query.eq('material_id', filters.material_id);
@@ -120,7 +120,7 @@ export const usageLogService = {
   async getByMaterial(materialId: number): Promise<{ data: UsageLog[] | null; error: any }> {
     const { data, error } = await supabase
       .from('usage_logs')
-      .select('*, materials(name, category, unit), batches(batch_number)')
+      .select('*, materials(name, category, unit), batches(batch_number), bill_number')
       .eq('material_id', materialId)
       .order('date', { ascending: false });
     
@@ -133,7 +133,7 @@ export const usageLogService = {
   async getByBatch(batchId: number): Promise<{ data: UsageLog[] | null; error: any }> {
     const { data, error } = await supabase
       .from('usage_logs')
-      .select('*, materials(name, category, unit), batches(batch_number)')
+      .select('*, materials(name, category, unit), batches(batch_number), bill_number')
       .eq('batch_id', batchId)
       .order('date', { ascending: false });
     

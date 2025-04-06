@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { LayoutDashboard, Beaker, Database, Package2, FileText } from "lucide-react";
+import LogoutButton from "@/components/Auth/LogoutButton";
+import { ThemeToggle } from "./ThemeToggle";
 
 const Navbar = () => {
   const location = useLocation();
@@ -67,12 +69,22 @@ const Navbar = () => {
             label="Usage Log" 
             isActive={isActive("/usage-log")} 
           />
+          <NavItem
+            to="/materials-log"
+            icon={<FileText size={18} />}
+            label="Materials Log"
+            isActive={isActive("/materials-log")}
+          />
           <NavItem 
             to="/batches" 
             icon={<Database size={18} />} 
             label="Batches" 
             isActive={isActive("/batches")} 
           />
+          <div className="ml-2 flex items-center space-x-1">
+            <ThemeToggle />
+            <LogoutButton />
+          </div>
         </nav>
       </div>
     </header>

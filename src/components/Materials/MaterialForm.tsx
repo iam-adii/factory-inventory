@@ -23,8 +23,8 @@ interface MaterialFormProps {
   onSave: (material: any) => void;
 }
 
-const categories = ["Raw Material", "Chemicals"];
-const units = ["Kg", "Mtr", "L", "cm", "gm"];
+const categories = ["Raw Material", "Chemicals", "GI Coil", "PPGL coil", "Screw", "Board", "Puf Panel", "Chemical", "Insulation", "Adhesives"];
+const units = ["KG", "Pcs", "Mtr", "RFT", "SQM", "SQFT", "PKT", "DRM", "BOX", "CASE", "L", "cm", "gm"];
 
 const MaterialForm: React.FC<MaterialFormProps> = ({ material, onClose, onSave }) => {
   const [formData, setFormData] = useState({
@@ -190,7 +190,8 @@ const MaterialForm: React.FC<MaterialFormProps> = ({ material, onClose, onSave }
                 type="number"
                 value={formData.current_stock}
                 onChange={(e) => handleChange("current_stock", parseFloat(e.target.value) || 0)}
-                className={errors.current_stock ? "border-red-500" : ""}
+                disabled={isEditMode}
+                className={`${errors.current_stock ? "border-red-500" : ""} ${isEditMode ? "bg-gray-100" : ""}`}
               />
               {errors.current_stock && <p className="text-xs text-red-500">{errors.current_stock}</p>}
             </div>
